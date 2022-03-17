@@ -1,0 +1,70 @@
+﻿@page "/booking/{cabinID:int}/{start}/{end}"
+@using Microsoft.AspNetCore.Authorization
+@using ProdMan_WASM.Services
+@inject IBookingService bookingService
+@inject NavigationManager navman
+@inject ICabinService cabinService
+@inject IToastService toastService
+
+@attribute [Authorize]
+<AuthorizeView>
+    <Authorized>
+        <div class="row mt-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-body">
+                        <EditForm Model="bookingform" Context="form">
+                            <DataAnnotationsValidator/>
+                            <img class="card-img-top" src="@imageURL">
+                            <div class="form-group">
+                                <label>Start-Datum</label>
+                                <InputDate class="form-control" readonly @bind-Value="bookingform.Start"></InputDate>
+                            </div>
+                            <div class="form-group">
+                                <label>Slut-Datum</label>
+                                <InputDate class="form-control" readonly @bind-Value="bookingform.End"></InputDate>
+                            </div>
+                            <p>Totala priset: @price kr</p>
+                            <p>E-post: @context.User.Identity.Name</p>
+                            <div class="form-group">
+                                <button class="btn btn-primary" @onclick="OnSaveClick">Boka</button>
+                            </div>
+                        </EditForm>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </Authorized>
+</AuthorizeView>
+
+@code {
+    public double price { get; set; }
+    public string imageURL { get; set; }
+    public CabinDTO cabin { get; set; } = new();
+    public BookingDTO bookingform { get; set; } = new();
+    [Parameter]
+    public int cabinID { get; set; }
+    [Parameter]
+    public string start { get; set; }
+    [Parameter]
+    public string end { get; set; }
+
+    protected override async void OnInitialized()
+    {
+        cabin = await cabinService.GetCabinAsync(cabinID);
+        imageURL = "https://localhost:5001" + cabin.Images.FirstOrDefault(i => i.IsPrimary).URL;
+        bookingform.CabinID = cabinID;
+        bookingform.Start = DateTime.Parse(start);
+        bookingform.End = DateTime.Parse(end);
+        price = (bookingform.End - bookingform.Start).Days * cabin.Rent;
+        StateHasChanged();
+    }
+
+    protected async Task OnSaveClick()
+    {
+        await bookingService.CreateBookingAsync(bookingform);
+        toastService.ShowSuccess("Din bokning är nu genomförd och du kommer nu flyttas till startsidan", "Bokat!");
+
+        navman.NavigateTo("/");
+    }
+}

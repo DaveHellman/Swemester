@@ -1,0 +1,90 @@
+﻿@page "/"
+@using ProdMan_WASM.Services
+@inject HttpClient client
+@inject ICabinService CabinService
+
+<div id="carouselExampleControls" class="carousel slide mb-3" data-bs-ride="carousel">
+      <div class="carousel-inner">
+          @if(URLS.Count > 0)
+        {
+            <div class="carousel-item active">
+              <img src="@("https://localhost:5001" + URLS.First())" class="d-block w-50 h-25 rounded mx-auto">
+          
+          </div>
+        }
+        @foreach(var cabin in URLS.Skip(1))
+      {
+          <div class="carousel-item">
+
+              <img src="@("https://localhost:5001" + cabin)" class="d-block w-50 h-25 rounded mx-auto">
+          
+          </div>
+      }
+      </div>
+
+  <button class="carousel-control-prev" type="button" data-bs-target="#carouselExampleControls" data-bs-slide="prev">
+    <span class="carousel-control-prev-icon" aria-hidden="true"></span>
+    <span class="visually-hidden">Previous</span>
+  </button>
+  <button class="carousel-control-next" type="button" data-bs-target="#carouselExampleControls" data-bs-slide="next">
+    <span class="carousel-control-next-icon" aria-hidden="true"></span>
+    <span class="visually-hidden">Next</span>
+  </button>
+</div>
+
+<EditForm Model="searchModel">
+    <InputDate @bind-Value="searchModel.Start">Start-Datum</InputDate>
+    <InputDate @bind-Value="searchModel.End">Slut-Datum</InputDate>
+    <button class="btn btn-primary" @onclick="Search">Sök</button>
+</EditForm>
+
+<div class="row">
+@foreach(var cabin in Cabins)
+{
+  <div class="card me-2 mb-2" style="width: 18rem;">
+        @if(cabin.Images.Count > 0)
+        {
+            imgsrc = "https://localhost:5001" + cabin.Images.FirstOrDefault(i => i.IsPrimary).URL;
+            <img class="card-img-top" src="@imgsrc">
+
+            available = cabin.Available ? "Ja" : "Nej";
+        }
+  <div class="card-body">
+    <h5 class="card-title">@cabin.Name</h5>
+    <span class="card-text">Adress: @cabin.Adress</span> <br>
+    <span class="card-text">Area: @cabin.Area kvm</span> <br>
+    <span class="card-text">Tillgänglig: @available </span> <br>
+    <span class="card-text">Beskrivning: @cabin.Description</span> <br>
+    <span class="card-text mb-1">Hyra: @cabin.Rent kr</span> <br>
+    <a href="/booking/@cabin.ID/@searchModel.Start.ToShortDateString()/@searchModel.End.ToShortDateString()" class="btn btn-primary mt-1">Boka</a>
+  </div>
+</div>
+}
+</div>
+
+@code{
+    string available = null;
+    string imgsrc = null;
+
+    BookingDTO searchModel = new();
+
+    public List<CabinDTO> Cabins { get; set; } = new();
+    public List<string> URLS = new();
+
+    protected async Task Search()
+    {
+        Cabins = await CabinService.GetCabinsAsync(searchModel.Start, searchModel.End);
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        searchModel.Start = DateTime.Today;
+        searchModel.End = DateTime.Today.AddDays(7);
+        //await Task.Delay(3000);
+        if(Cabins.Count < 1)
+        {
+            Cabins = await CabinService.GetCabinsAsync(searchModel.Start, searchModel.End);
+            URLS = Cabins.Select(c => c.Images.FirstOrDefault(i => i.IsPrimary).URL).ToList();
+        }
+    }
+}

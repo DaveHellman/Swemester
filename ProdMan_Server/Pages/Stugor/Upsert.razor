@@ -1,0 +1,205 @@
+﻿@page "/cabins/create"
+@page "/cabins/edit/{CabinId:int}"
+@using Business.Repository
+@using Microsoft.AspNetCore.Hosting
+@using Models
+@using System.IO
+@using ProdMan_Server.Helpers
+@using ProdMan_Server.Services
+@using System.Net.Http.Headers
+@using System.Text.Json
+@inject ICabinRepository cabinrepo
+@inject IJSRuntime jsruntime
+@inject NavigationManager navman
+@inject IImageRepository imagerepo
+@inject IFileManager fileman
+
+@attribute [Authorize(Roles = "Admin, Employee")]
+
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+                <EditForm Model="CabinModel" OnValidSubmit="OnClickSave">
+                    <DataAnnotationsValidator></DataAnnotationsValidator>
+                        <div class="form-group">
+                            <label>Namn</label>
+                            <InputText class="form-control" @bind-Value="CabinModel.Name"></InputText>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Hyra</label>
+                            <InputNumber class="form-control" @bind-Value="CabinModel.Rent"></InputNumber>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Beskrivning</label>
+                            <InputNumber class="form-control" @bind-Value="CabinModel.Description"></InputNumber>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Tillgänglig</label>
+                            <InputCheckbox class="form-check" @bind-Value="CabinModel.Available"></InputCheckbox>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Adress</label>
+                            <InputText class="form-control" @bind-Value="CabinModel.Adress"></InputText>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Yta</label>
+                            <InputNumber class="form-control" @bind-Value="CabinModel.Area"></InputNumber>
+                        </div>
+
+                        <div class="form-group">
+                            <InputFile OnChange="HandleFileUpload" multiple></InputFile>
+                            <div class="row">
+                                @{ int index = 1;}
+                                @foreach(var image in CabinModel.Images) 
+                                {
+                                    <div class="col-md-2 mt-3 ">
+                                        <div class="product-image-display" style="background:url('@image.URL')">
+                                            <span class="product-image-tag">@index</span>
+                                        </div>
+                                        <div class="form-group">
+                                            <label>Titel</label>
+                                            <InputText class="form-control" @bind-Value="image.Name"></InputText>
+                                        </div>
+                                        <div class="form-group">
+                                            <label>Primär bild</label>
+                                            <InputCheckbox @onclick="()=>PrimarySelection(image)" @bind-Value="image.IsPrimary"></InputCheckbox>
+                                        </div>
+                                        <button @onclick="()=>DeleteImage(image)" class="btn btn-block btn-outline-danger" type="button">Radera</button>
+                                    </div>
+                                    index++;
+                                }
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <button class="btn btn-primary">Spara</button>
+                        </div>
+                    
+                </EditForm>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    public CabinDTO CabinModel { get; set; } = new();
+
+    [Parameter]
+    public int CabinId { get; set; }
+
+    protected async override Task OnInitializedAsync()
+    {
+        if (CabinId != 0)
+        {
+            CabinModel = await cabinrepo.GetCabinAsync(CabinId);
+        }
+    }
+
+    protected void PrimarySelection(ImageDTO image)
+    {
+        foreach (var img in CabinModel.Images)
+        {
+            if (img == image)
+            {
+                continue;
+            }
+            else
+            {
+                img.IsPrimary = false;
+            }
+        }
+    }
+
+    protected async Task OnClickSave()
+    {
+        if (CabinModel.ID != 0)
+        {
+            var obj = await cabinrepo.UpdateCabinAsync(CabinModel);
+            //await AddImageToCabin(obj);
+
+            foreach (var img in CabinModel.Images)
+            {
+                if (img.ID == 0)
+                {
+                    img.CabinID = obj.ID;
+                    //await imagerepo.AddProductImage(img);
+                }
+                else
+                {
+                    await imagerepo.UpdateImage(img);
+                }
+            }
+            navman.NavigateTo("/cabins");
+        }
+        else
+        {
+            if (await cabinrepo.IsCabinUniqe(CabinModel.Name) == null)
+            {
+                var obj = await cabinrepo.CreateCabinAsync(CabinModel);
+                //await AddImageToCabin(obj);
+
+                foreach (var img in CabinModel.Images)
+                {
+                    img.CabinID = obj.ID;
+                    await imagerepo.AddProductImage(img);
+                }
+                navman.NavigateTo("/cabins");
+
+            }
+            else
+            {
+                await jsruntime.ErrorToastr("Namnet är redan i användning");
+            }
+        }
+    }
+
+    protected void DeleteImage(ImageDTO image)
+    {
+        File.Delete("wwwroot" + image.URL);
+        imagerepo.RemoveImageById(image.ID);
+        CabinModel.Images.Remove(image);
+    }
+
+    protected async Task HandleFileUpload(InputFileChangeEventArgs args)
+    {
+        string[] Extensions = new string[] { ".png", ".jpg", ".jpeg" };
+
+        foreach (var image in args.GetMultipleFiles())
+        {
+            FileInfo fi = new FileInfo(image.Name);
+
+            if (Extensions.Any(k => k == fi.Extension.ToLower())) 
+            {
+                var imgurl = await fileman.SaveFile(image);
+                if (imgurl != null) 
+                {
+                    CabinModel.Images.Add(new() { URL = imgurl, Name = "" });
+                }
+            }
+            else
+            {
+                await jsruntime.ErrorToastr("Filen stöds inte");
+            }
+        }
+    }
+
+    //protected async Task AddImageToCabin(CabinDTO cabin)
+    //{
+    //    foreach (var img in CabinModel.Images)
+    //    {
+    //        if (!CabinModel.Images.Any(i => i.URL == img.URL)) 
+    //        {
+    //            CabinModel.Images.Add(img);
+    //            await jsruntime.SuccessToastr("Bilden är tillagd!");
+    //        }
+    //    }
+    //}
+
+
+}

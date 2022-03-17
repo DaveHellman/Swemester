@@ -1,0 +1,60 @@
+﻿@page "/cabins"
+@using Business.Repository
+@using DataAccess.Data
+@using Models
+@inject ICabinRepository cabinrepo
+
+@attribute [Authorize(Roles = "Admin, Employee")]
+
+<h3>Alla stugor</h3>
+
+<div class="col-md-2">
+    <NavLink href="/Cabins/Create" class="form-control btn btn-info">Lista en ny stuga</NavLink>
+</div>
+
+<div class="col-md-12">
+    <table class="table table-striped table-hover">
+        <thead>
+            <tr>
+                <th>Namn</th>
+                <th>Adress</th>
+                <th>Pris per natt</th>
+                <th>Tillgänglig</th>
+                <th>Yta</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var cabin in cabins)
+            {
+                <tr>
+                    <td>@cabin.Name</td>
+                    <td>@cabin.Adress</td>
+                    <td>@cabin.Rent</td>
+                    <td>@cabin.Available</td>
+                    <td>@cabin.Area</td>
+                    <td><NavLink href=@("/cabins/edit/" + @cabin.ID)>Redigera</NavLink></td>
+                    <td><button class="btn btn-danger" @onclick="() => DeleteCabin(cabin.ID)">Radera</button></td>
+                </tr>
+            }
+        </tbody>
+    </table>
+
+</div>
+
+
+@code {
+    public List<CabinDTO> cabins { get; set; } = new List<CabinDTO>();
+
+    protected async Task DeleteCabin(int ID)
+    {
+        var ToRemove = cabins.FirstOrDefault(cabin => cabin.ID == ID);
+        cabins.Remove(ToRemove);
+        await cabinrepo.DeleteCabin(ID);
+
+    }
+
+    protected async override Task OnInitializedAsync()
+    {
+        cabins = await cabinrepo.GetAllCabinsAsync();
+    }
+}
